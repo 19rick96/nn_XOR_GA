@@ -1,0 +1,141 @@
+import numpy as np
+import random
+import operator
+import cPickle as pickle
+
+# no. of weights = 9
+# no. of genes in 1 chromosome = 5*9 = 45
+# consider adding localisation
+
+pop = 50
+parent_num = 30
+
+outfile = file('chromosomes.txt','w')
+
+def sigmoid(x):
+	return 1.0/(1.0+np.exp(-x))
+
+def feedforward(inp1,inp2,arr1):
+	arr = chromo_2_weight(arr1)
+	l1 = sigmoid(arr[0]+ (inp1*arr[1]) + (inp2*arr[2]))
+	l2 = sigmoid(arr[3]+ (inp1*arr[4]) + (inp2*arr[5]))
+	out = sigmoid(arr[6] + (l1*arr[7]) + (l2*arr[8]))
+	return out
+
+def fitness(arr):
+	f1 = feedforward(0.0,0.0,arr)
+	f2 = feedforward(0.0,1.0,arr)
+	f3 = feedforward(1.0,0.0,arr)
+	f4 = feedforward(1.0,1.0,arr)
+	f = (f1-0.0)**2 + (f2-1.0)**2 + (f3-1.0)**2 + (f4-0.0)**2
+	f = f/4
+	f = np.sqrt(f)
+	f = 1/f
+	return f
+
+def mutate_weights(arr,mut):
+	for j in range(0,mut):
+		i = random.randint(0,len(arr)-1)
+		a = random.randint(0,9)
+		arr[i] = a
+	return arr
+
+def chromo_2_weight(arr):
+	weight = []
+	for i in range(0,9):
+		ind = 5*i
+		mul = 1.0
+		if arr[ind] >= 5:
+			mul = -1.0
+		w = ((arr[ind+1]*1000.0 + arr[ind+2]*100.0 + arr[ind+3]*10.0 + arr[ind+4])*mul)/1000.0
+		weight.append(w)
+	weight = np.asarray(weight)
+	return weight
+
+def n_point_crossover(n,arr1,arr2):
+	points = random.sample(range(1,len(arr1)-1),n)
+	child = []
+	init = 0
+	points = sorted(points)
+	#print points
+	for i in range(0,len(points)):
+		ch = random.randint(0,1)
+		if ch == 0:
+			for j in range(init,points[i]):
+				child.append(arr1[j])
+		else :
+			for j in range(init,points[i]):
+				child.append(arr2[j])
+		init = points[i]
+	ch = random.randint(0,1)
+	if ch == 0:
+		for j in range(init,len(arr1)):
+			child.append(arr1[j])
+	else :
+		for j in range(init,len(arr2)):
+			child.append(arr2[j])
+	child = np.asarray(child)
+	return child
+
+def form_mating_pool(parent_pop,population):
+	# stochastic universal sampling
+	segments = []
+	total = 0
+	for i in range(0,len(population)):
+		total = total + fitness(population[i])
+		segments.append(total)
+	segments = np.asarray(segments)
+	dist = total/parent_pop
+	pointer = random.uniform(0.0,dist)
+	parents = []
+	for i in range(0,parent_pop):
+		ind = 0
+		par = pointer + i*dist
+		for j in range(1,len(segments)):
+			if par<segments[j]:
+				ind = j
+				break
+		parents.append(population[ind])
+	parents = np.asarray(parents)
+	return parents
+
+def form_next_gen(parents,population):
+	next_gen = []
+	temp = []
+	for j in range(0,2):
+		random.shuffle(parents)
+		for i in range(0,len(parents)/2):
+			c1 = mutate_weights(parents[2*i],7)
+			c2 = mutate_weights(parents[(2*i)+1],7)
+			elem = []
+			c3 = n_point_crossover(2,c1,c2)
+			f = fitness(c3)
+			elem.append(f)
+			elem.append(c3)
+			temp.append(elem)
+	for i in range(0,len(population)):
+		f = fitness(population[i])
+		elem = []
+		elem.append(f)
+		elem.append(population[i])
+		temp.append(elem)
+	#elitist approach
+	temp = sorted(temp,key=operator.itemgetter(0),reverse=True)
+	for i in range(0,pop):
+		next_gen.append(temp[i][1])
+	return next_gen,temp[0][0]
+
+population = []
+for i in range(0,pop):
+	a = np.random.randint(10,size=45)
+	population.append(a)
+loss = 4.0
+itr = 0
+while loss>0.01:
+	itr = itr + 1
+	parents = form_mating_pool(parent_num,population)
+	population,fit = form_next_gen(parents,population)
+	fit = 1/fit
+	fit = fit**2
+	loss = 4.0*fit
+	print "%d   %f"%(itr,loss)
